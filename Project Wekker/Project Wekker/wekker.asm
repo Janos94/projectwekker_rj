@@ -27,9 +27,6 @@ init:
 	ldi R16, low(RAMEND)	;
 	out SPL, R16			;
 	rcall reset				;
-<<<<<<< HEAD
-=======
-
 
 	; f kristal = 11059200 en 1 sec = (256/11059200) * 43200
 	; to do a 16-bit write, the high byte must be written before the low byte !
@@ -48,8 +45,6 @@ init:
 	out TIMSK, tmp
 
 // Init/reset timer to 0 sec. 
->>>>>>> 3ea46457960b45e6cfba01e06e3422a45d4bad1e
-
 
 reset:	// Reset clock to 00:00:00.
 	ldi highSec, 0x00
