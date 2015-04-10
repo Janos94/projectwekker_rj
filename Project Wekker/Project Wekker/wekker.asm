@@ -9,14 +9,14 @@
 
 .def tmp = r17; Define temp on reg 17
 
-.def highSec = r20
-.def lowSec = r21
+.def HighSec = r20
+.def LowSec = r21
 
-.def highMin = r22
-.def lowMin = r23
+.def HighMin = r22
+.def LowMin = r23
 
-.def highHr = r24
-.def lowHr = r25
+.def HighHr = r24
+.def LowHr = r25
 
 
 // Init stackpointer program 
@@ -44,17 +44,41 @@ init:
 	ldi tmp, (1 << OCIE1A)
 	out TIMSK, tmp
 
+	rjmp loop
+
 // Init/reset timer to 0 sec. 
 
 reset:	// Reset clock to 00:00:00.
-	ldi highSec, 0x00
-	ldi lowSec, 0x00
+	ldi HighSec, 0x00
+	ldi LowSec, 0x00
 
-	ldi highMin, 0x00
-	ldi lowSec, 0x00
+	ldi HighMin, 0x00
+	ldi LowMin, 0x00
 
-	ldi highHr, 0x00
-	ldi lowHr, 0x00
+	ldi HighHr, 0x00
+	ldi LowHr, 0x00
 
 	ret
  
+
+ 
+
+ loop: // Begin timer loop
+	rcall incLowSec		;
+	rjmp loop			;
+	
+incLowSec:
+	cpi LowSec, 9
+	brsh incHighSec		;
+	inc LowSec			; 
+	ret 
+
+incHighSec: 
+	cpi HighSec, 5		; 
+	brsh incLowMin		; 
+	inc HighSec			;
+	rjmp loop			;
+
+incLowMin:
+	rjmp loop			;
+	
