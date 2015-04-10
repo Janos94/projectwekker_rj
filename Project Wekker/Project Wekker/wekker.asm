@@ -22,17 +22,14 @@
 // Init stackpointer program 
 
 init: 
-
 	ldi R16, high(RAMEND)	;
 	out SPH, R16			;
 	ldi R16, low(RAMEND)	;
 	out SPL, R16			;
-	rcall init_timer		;
+	rcall reset				;
 
-// Init/reset timer to 0 sec. 
 
-init_timer: 
-
+reset:	// Reset clock to 00:00:00.
 	ldi highSec, 0x00
 	ldi lowSec, 0x00
 
