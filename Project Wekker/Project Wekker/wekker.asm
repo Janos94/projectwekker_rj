@@ -27,6 +27,28 @@ init:
 	ldi R16, low(RAMEND)	;
 	out SPL, R16			;
 	rcall reset				;
+<<<<<<< HEAD
+=======
+
+
+	; f kristal = 11059200 en 1 sec = (256/11059200) * 43200
+	; to do a 16-bit write, the high byte must be written before the low byte !
+	; for a 16-bit read, the low byte must be read before the high byte !
+	; (p 89 datasheet)
+	ldi tmp, high(43200)
+	out OCR1AH, tmp
+	ldi tmp, low(43200)
+	out OCR1AL, tmp
+ 
+	; zet prescaler op 256 & zet timer in CTC-mode
+	ldi tmp, (1 << CS12) | (1 << WGM12) 
+	out TCCR1B, tmp
+	; enable interrupt
+	ldi tmp, (1 << OCIE1A)
+	out TIMSK, tmp
+
+// Init/reset timer to 0 sec. 
+>>>>>>> 3ea46457960b45e6cfba01e06e3422a45d4bad1e
 
 
 reset:	// Reset clock to 00:00:00.
@@ -40,5 +62,4 @@ reset:	// Reset clock to 00:00:00.
 	ldi lowHr, 0x00
 
 	ret
-
-
+ 
