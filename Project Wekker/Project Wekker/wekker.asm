@@ -69,16 +69,24 @@ reset:	// Reset clock to 00:00:00.
 	
 incLowSec:
 	cpi LowSec, 9
-	brsh incHighSec		;
+	breq incHighSec		;
 	inc LowSec			; 
 	ret 
 
 incHighSec: 
+	clr LowSec			;
 	cpi HighSec, 5		; 
-	brsh incLowMin		; 
+	breq incLowMin		; 
 	inc HighSec			;
-	rjmp loop			;
+	ret					;
 
 incLowMin:
-	rjmp loop			;
+	clr HighSec			;
+	cpi LowMin, 9		;
+	breq incHighMin		;
+	inc LowMin			;
+	ret					;
+
+incHighMin:
+	ret					;
 	
