@@ -58,12 +58,12 @@ reset:	// Reset clock to 00:00:00.
 	ldi HighHr, 0x00
 	ldi LowHr, 0x00
 
-	ret
- 
+	ret 
 
- 
+// Begin timer loop //////////////////////
 
- loop: // Begin timer loop
+
+ loop: 
 	rcall incLowSec		;
 	rjmp loop			;
 	
@@ -88,5 +88,28 @@ incLowMin:
 	ret					;
 
 incHighMin:
+	clr LowMin			;
+	cpi HighMin, 5		; 
+	breq incLowHr		;
+	inc HighMin			;
 	ret					;
+
+incLowHr:				
+	clr HighMin			;
+	cpi LowHr, 9		; 
+	breq incHighHr		;
+	inc LowHr			;
+	ret
+
+incHighHr:
+	clr LowHr			;
+	cpi HighHr, 5		;
+	breq reset			; Reset values to 00:00:00
+	inc HighHr			;
+	ret
+
+///////////////////////////////
+
+stop: 
+	rjmp stop;			
 	
