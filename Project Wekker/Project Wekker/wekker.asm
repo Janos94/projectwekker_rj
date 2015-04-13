@@ -7,7 +7,7 @@
 
 .include "m32def.inc"; include m32def file 
 
-.def tmp = r17; Define temp on reg 17
+.def tmp = r16; Define temp on reg 16
 
 .def HighSec = r20
 .def LowSec = r21
@@ -17,6 +17,8 @@
 
 .def HighHr = r24
 .def LowHr = r25
+
+.def newDay = r19;
 
 
 // Init stackpointer program 
@@ -64,50 +66,56 @@ reset:	// Reset clock to 00:00:00.
 
 
  loop: 
-	rcall incLowSec		;
+	rcall incLowHr		;
 	rjmp loop			;
 	
 incLowSec:
 	cpi LowSec, 9
-	breq incHighSec		;
+	brsh incHighSec		;
 	inc LowSec			; 
 	ret 
 
 incHighSec: 
 	clr LowSec			;
 	cpi HighSec, 5		; 
-	breq incLowMin		; 
+	brsh incLowMin		; 
 	inc HighSec			;
 	ret					;
 
 incLowMin:
 	clr HighSec			;
 	cpi LowMin, 9		;
-	breq incHighMin		;
+	brsh incHighMin		;
 	inc LowMin			;
 	ret					;
 
 incHighMin:
 	clr LowMin			;
 	cpi HighMin, 5		; 
-	breq incLowHr		;
+	brsh incLowHr		;
 	inc HighMin			;
 	ret					;
 
 incLowHr:				
 	clr HighMin			;
+	rcall checkNewDay	;
 	cpi LowHr, 9		; 
-	breq incHighHr		;
+	brsh incHighHr		;
 	inc LowHr			;
 	ret
 
 incHighHr:
 	clr LowHr			;
-	cpi HighHr, 5		;
-	breq reset			; Reset values to 00:00:00
 	inc HighHr			;
 	ret
 
+checkNewDay:	
+	mov newDay, Highhr	;
+	add newDay, LowHr	; 		
+	cpi newDay, 23		;
+	brsh reset			;
+	ret					;	
+	
 ///////////////////////////////
 
 stop: 
