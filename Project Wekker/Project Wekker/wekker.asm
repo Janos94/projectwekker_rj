@@ -107,13 +107,12 @@ time_increment:
 ///////////////////////////////
 
 stop: 
-	rjmp stop;	
+	jmp stop;	
 	
 Output:
 	//Wait for empty transmit buffer
 	SBIS UCSRA, UDRE
 	RJMP Output
-
 
 // Build segment value from tmp reg
 build_segment: 
