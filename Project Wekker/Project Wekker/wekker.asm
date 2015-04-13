@@ -5,32 +5,48 @@
  *   Author: Jan & Ricardo 
  */ 
 
+.org 0x0000
+
 .include "m32def.inc"; include m32def file 
 
-.def tmp = r16; Define temp on reg 16
-
-.def HighSec = r20
-.def LowSec = r21
-
-.def HighMin = r22
-.def LowMin = r23
-
-.def HighHr = r24
-.def LowHr = r25
-
-.def newDay = r19;
-
-
-// Init stackpointer program 
+// Kleine aanpassing, kunnen beter alles in 1 variabele zetten
 
 init: 
-	ldi R16, high(RAMEND)	;
-	out SPH, R16			;
-	ldi R16, low(RAMEND)	;
-	out SPL, R16			;
-	rcall reset				;
 
-	; f kristal = 11059200 en 1 sec = (256/11059200) * 43200
+	.def tmp = r16; Define tmp on reg 16
+
+	.def var2 = r17		;
+	.def var1 = r18		;
+
+	.def status = r19	;
+
+	.def seconds = r20	;
+	.def minutes = r21	;
+	.def hours = r22	;
+
+	.def alarm = r23	;
+	.def alarm_h = r24	;
+	.def alarm_m = r25	;
+
+	// Init stackpointer program 
+	ldi		tmp,low(RAMEND)
+	out		Spl,tmp
+	ldi		tmp,high(RAMEND)
+	out		Sph,tmp	
+
+	// Init UART/RS232
+	clr tmp;
+	out UBRRH, tmp
+	ldi tmp, 35 ; 19200 baud
+	out UBRRL, tmp
+	; set frame format : asynchronous, parity disabled, 8 data bits, 1 stop bit
+	ldi tmp, (1<<URSEL)|(1<<UCSZ1)|(1<<UCSZ0)
+	out UCSRC, tmp
+	; enable receiver & transmitter
+	ldi tmp, (1 << RXEN) | (1 << TXEN)
+	out UCSRB, tmp
+
+	;f kristal = 11059200 en 1 sec = (256/11059200) * 43200
 	; to do a 16-bit write, the high byte must be written before the low byte !
 	; for a 16-bit read, the low byte must be read before the high byte !
 	; (p 89 datasheet)
@@ -51,73 +67,111 @@ init:
 // Init/reset timer to 0 sec. 
 
 reset:	// Reset clock to 00:00:00.
-	ldi HighSec, 0x00
-	ldi LowSec, 0x00
-
-	ldi HighMin, 0x00
-	ldi LowMin, 0x00
-
-	ldi HighHr, 0x00
-	ldi LowHr, 0x00
+	ldi seconds, 0x00
+	ldi minutes, 0x00
+	ldi hours, 0x00
 
 	ret 
 
-// Begin timer loop //////////////////////
-
+// Continues looping //////////////////
 
  loop: 
-	rcall incLowHr		;
-	rjmp loop			;
+	jmp loop
+
+// Timer routine //////////////////////
+
+time_increment: 
+	inc seconds
+	cpi seconds, 60
+	breq min_increment
+	ret
 	
-incLowSec:
-	cpi LowSec, 9
-	brsh incHighSec		;
-	inc LowSec			; 
-	ret 
+	min_increment:
+		clr seconds
+		inc minutes
+		cpi minutes, 60
+		breq hr_increment
+		ret
 
-incHighSec: 
-	clr LowSec			;
-	cpi HighSec, 5		; 
-	brsh incLowMin		; 
-	inc HighSec			;
-	ret					;
-
-incLowMin:
-	clr HighSec			;
-	cpi LowMin, 9		;
-	brsh incHighMin		;
-	inc LowMin			;
-	ret					;
-
-incHighMin:
-	clr LowMin			;
-	cpi HighMin, 5		; 
-	brsh incLowHr		;
-	inc HighMin			;
-	ret					;
-
-incLowHr:				
-	clr HighMin			;
-	rcall checkNewDay	;
-	cpi LowHr, 9		; 
-	brsh incHighHr		;
-	inc LowHr			;
-	ret
-
-incHighHr:
-	clr LowHr			;
-	inc HighHr			;
-	ret
-
-checkNewDay:	
-	mov newDay, Highhr	;
-	add newDay, LowHr	; 		
-	cpi newDay, 23		;
-	brsh reset			;
-	ret					;	
+		hr_increment:
+		clr minutes
+		inc hours
+		cpi hours, 24
+		breq newday
+		ret
+			
+		newday: 
+			clr hours
+			ret
 	
 ///////////////////////////////
 
 stop: 
-	rjmp stop;			
+	rjmp stop;	
+	
+Output:
+	//Wait for empty transmit buffer
+	SBIS UCSRA, UDRE
+	RJMP Output
+
+
+// Build segment value from tmp reg
+build_segment: 
+
+	zero:
+		cpi tmp, 0
+		brne one
+		ldi tmp, 0b01110111
+		ret
+	one:
+		cpi tmp, 1
+		brne two
+		ldi tmp, 0b00100100
+		ret
+	two:
+		cpi tmp, 2
+		brne three
+		ldi tmp, 0b01011101
+		ret
+	three:
+		cpi tmp, 3
+		brne four
+		ldi tmp, 0b01101101
+		ret 
+	four: 
+		cpi tmp, 4
+		brne five
+		ldi tmp, 0b00101110
+		ret 
+	five: 
+		cpi tmp, 5
+		brne six
+		ldi tmp, 0b01101011
+		ret 
+	six: 
+		cpi tmp, 6
+		brne seven
+		ldi tmp, 0b01111011
+		ret 
+	seven: 
+		cpi tmp, 7
+		brne eight
+		ldi tmp, 0b00100101
+		ret 
+	eight: 
+		cpi tmp, 8
+		brne nine
+		ldi tmp, 0b01111111
+		ret
+	nine: 
+		cpi tmp, 9 
+		brne end_build
+		ldi tmp, 0b01101111
+		ret 
+
+end_build: 
+	ret
+
+/////////////////
+
 	
