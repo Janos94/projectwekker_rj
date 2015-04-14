@@ -34,6 +34,12 @@ init:
 	.def saveSR = r26	;
 	.def flags = r27	;
 
+	.def clear = r28
+	
+	/*clr seconds
+	clr minutes
+	clr hours */
+
 	// Init stackpointer program 
 	ldi		tmp,low(RAMEND)
 	out		Spl,tmp
@@ -83,20 +89,11 @@ init:
 	//Clear tmp
 	CLR		tmp
 
-	// ISR voor INT1
-	/*
-	handle_INT_1:
-	IN		saveSR, SREG	; save SREG
-	RCALL		time_increment
-	OUT		PORTB,	seconds
-	OUT		SREG,	saveSR	; restore SREG
-	RETI				; return from interrupt
-	*/
-
 loop: 
 	
 	cpi flags, 1
 	breq time_increment
+	//rcall time_increment
 	jmp loop
 
 TIMER1_COMP_ISR:			; ISR wordt elke seconde aangeroepen
@@ -104,26 +101,6 @@ TIMER1_COMP_ISR:			; ISR wordt elke seconde aangeroepen
 	ldi		flags, 1
 	OUT		SREG, saveSR	; restore SREG
 	RETI				; return from interrupt
-
-/*call_interupt:
-	IN saveSR, SREG		; save SREG
-	ldi flags, 1
-	rjmp send_time
-	//RCALL time_increment
-	OUT	SREG, saveSR 
-	reti*/
-
-// Init/reset timer to 0 sec. 
-
-/*reset:	// Reset clock to 00:00:00.
-	ldi seconds, 0x00
-	ldi minutes, 0x00
-	ldi hours, 0x00*/
-
-// Continues looping //////////////////
-	
-/*loop:	
-	JMP	loop*/
 
 // Timer routine //////////////////////
 
@@ -134,7 +111,6 @@ time_increment:
 	cpi seconds, 60
 	breq min_increment
 	ret
-	//rjmp call_interupt
 	
 	min_increment:
 		clr seconds
@@ -142,7 +118,7 @@ time_increment:
 		cpi minutes, 60
 		breq hr_increment
 		ret
-	//rjmp call_interupt
+		//rjmp call_interupt
 
 		hr_increment:
 		clr minutes
@@ -230,54 +206,60 @@ build_segment:
 end_build: 
 	ret
 
-/////////////////
+calc_segment:
+MOV	var1,	tmp
+CLR	var2
 
-calc_segment: 
-	clr var1
-	mov var2, tmp
-	cpi var2, 10
-	brlo calc_lower
-	subi var2, 10 
-	inc var1
-	ret
-
-	calc_lower: 
-		mov tmp, var1 
-		rcall build_segment
-		mov var1, tmp 
-		mov tmp, var2
-		rcall build_segment
-		mov var2, tmp
-		ret
+split_bytes_loop:
+	CPI		var1, 10
+	BRLO	split_bytes_loop_end
+	INC		var2
+	SUBI	var1, 10
+	JMP		split_bytes_loop
+split_bytes_loop_end:
+MOV		tmp,	var1
+RCALL	build_segment
+MOV		var1,	tmp
+MOV		tmp,	var2
+RCALL	build_segment
+MOV		var2,	tmp
+RET
 			
 send_time:
-	//Security System
-	LDI		tmp, 0x80
-	RCALL	output
+	
 	//	Send Hours
 	MOV	tmp, hours
 	RCALL calc_segment
-	MOV	tmp, var1
-	RCALL output
 	MOV	tmp, var2
+	RCALL output
+	MOV	tmp, var1
 	RCALL output
 	//	Send Minutes
 	MOV	tmp, minutes
 	RCALL calc_segment
-	MOV	tmp, var1
+	MOV	tmp, var2
 	RCALL output
-	MOV tmp, var2
+	MOV tmp, var1
 	RCALL output
 	//	Send Second
 	MOV	tmp, seconds
 	RCALL calc_segment
-	MOV	 tmp, var1
+	MOV	 tmp, var2
 	RCALL output
-	MOV	tmp, var2
+	MOV	tmp, var1
 	RCALL output
 	ldi tmp, 0b00000111
-	call output
+	RCALL output
+	ldi tmp, 0x80
+	RCALL output
 	RET
+	
+/*
+reset:	// Reset clock to 00:00:00.
+	ldi seconds, 0x00
+	ldi minutes, 0x00
+	ldi hours, 0x00
+	ret*/
 
 /*TIMER1_ISR:				; ISR wordt elke seconde aangeroepen
 	IN saveSR, SREG		; save SREG
