@@ -6,13 +6,16 @@
  */ 
 
 .org 0x0000
+rjmp init
+
+.org OC1Aaddr
+rjmp TIMER1_COMP_ISR ; adres ISR (Timer1 Output Compare Match)
 
 .include "m32def.inc"; include m32def file 
 
 // Kleine aanpassing, kunnen beter alles in 1 variabele zetten
 
 init: 
-
 	.def tmp = r16; Define tmp on reg 16
 
 	.def var2 = r17		;
@@ -27,6 +30,9 @@ init:
 	.def alarm = r23	;
 	.def alarm_h = r24	;
 	.def alarm_m = r25	;
+
+	.def saveSR = r26	;
+	.def flags = r27	;
 
 	// Init stackpointer program 
 	ldi		tmp,low(RAMEND)
@@ -62,29 +68,73 @@ init:
 	ldi tmp, (1 << OCIE1A)
 	out TIMSK, tmp
 
-	rjmp loop
+	// init INT1
+	LDI		tmp, (1<<ISC11)	; INT1 genereert interrupt			
+	OUT		MCUCR, tmp		
+	LDI		tmp, (1<<INT1)	; enable INT1 (GICR)
+	OUT		GICR, tmp
+
+	// init port
+	SER		tmp		; tmp = $FF
+	OUT		DDRB,	tmp	; Port B is output port (via LEDs)
+	OUT		PORTB,	tmp	; LEDs uitzetten
+	SEI				; enable all interrupts
+
+	//Clear tmp
+	CLR		tmp
+
+	// ISR voor INT1
+	/*
+	handle_INT_1:
+	IN		saveSR, SREG	; save SREG
+	RCALL		time_increment
+	OUT		PORTB,	seconds
+	OUT		SREG,	saveSR	; restore SREG
+	RETI				; return from interrupt
+	*/
+
+loop: 
+	
+	cpi flags, 1
+	breq time_increment
+	jmp loop
+
+TIMER1_COMP_ISR:			; ISR wordt elke seconde aangeroepen
+	IN		saveSR, SREG	; save SREG
+	ldi		flags, 1
+	OUT		SREG, saveSR	; restore SREG
+	RETI				; return from interrupt
+
+/*call_interupt:
+	IN saveSR, SREG		; save SREG
+	ldi flags, 1
+	rjmp send_time
+	//RCALL time_increment
+	OUT	SREG, saveSR 
+	reti*/
 
 // Init/reset timer to 0 sec. 
 
-reset:	// Reset clock to 00:00:00.
+/*reset:	// Reset clock to 00:00:00.
 	ldi seconds, 0x00
 	ldi minutes, 0x00
-	ldi hours, 0x00
-
-	ret 
+	ldi hours, 0x00*/
 
 // Continues looping //////////////////
-
- loop: 
-	jmp loop
+	
+/*loop:	
+	JMP	loop*/
 
 // Timer routine //////////////////////
 
 time_increment: 
+	rcall send_time
+	clr flags
 	inc seconds
 	cpi seconds, 60
 	breq min_increment
 	ret
+	//rjmp call_interupt
 	
 	min_increment:
 		clr seconds
@@ -92,6 +142,7 @@ time_increment:
 		cpi minutes, 60
 		breq hr_increment
 		ret
+	//rjmp call_interupt
 
 		hr_increment:
 		clr minutes
@@ -99,20 +150,28 @@ time_increment:
 		cpi hours, 24
 		breq newday
 		ret
+		//rjmp call_interupt
 			
 		newday: 
 			clr hours
 			ret
-	
-///////////////////////////////
+			//rjmp call_interupt
 
-stop: 
-	jmp stop;	
-	
-Output:
+output:
 	//Wait for empty transmit buffer
 	SBIS UCSRA, UDRE
-	RJMP Output
+	rjmp output
+
+	out UDR, tmp
+	RET
+
+input: 
+	; Wait for data to be received
+	sbis UCSRA, RXC
+	rjmp input
+	; Get and return received data from buffer
+	in tmp, UDR
+	ret
 
 // Build segment value from tmp reg
 build_segment: 
@@ -173,4 +232,115 @@ end_build:
 
 /////////////////
 
+calc_segment: 
+	clr var1
+	mov var2, tmp
+	cpi var2, 10
+	brlo calc_lower
+	subi var2, 10 
+	inc var1
+	ret
+
+	calc_lower: 
+		mov tmp, var1 
+		rcall build_segment
+		mov var1, tmp 
+		mov tmp, var2
+		rcall build_segment
+		mov var2, tmp
+		ret
+			
+send_time:
+	//Security System
+	LDI		tmp, 0x80
+	RCALL	output
+	//	Send Hours
+	MOV	tmp, hours
+	RCALL calc_segment
+	MOV	tmp, var1
+	RCALL output
+	MOV	tmp, var2
+	RCALL output
+	//	Send Minutes
+	MOV	tmp, minutes
+	RCALL calc_segment
+	MOV	tmp, var1
+	RCALL output
+	MOV tmp, var2
+	RCALL output
+	//	Send Second
+	MOV	tmp, seconds
+	RCALL calc_segment
+	MOV	 tmp, var1
+	RCALL output
+	MOV	tmp, var2
+	RCALL output
+	ldi tmp, 0b00000111
+	call output
+	RET
+
+/*TIMER1_ISR:				; ISR wordt elke seconde aangeroepen
+	IN saveSR, SREG		; save SREG
+	RCALL time_increment
+	OUT	SREG, saveSR	; restore SREG
+	RETI				; return from interrupt
+
+// ISR voor INT1
+handle_INT_1:
+	IN		saveSR, SREG	; save SREG
+	RCALL time_increment
+	OUT		PORTB,	seconds
+	OUT		SREG,	saveSR	; restore SREG
+	RETI				; return from interrupt*/
+
+
 	
+/*// ISR voor Timer1 van 5Hz
+TIMER1_ISR:					
+	IN saveSR, SREG	; save SREG
+
+//Timer Tellers
+	CPI flags, 2
+	BREQ TIMER1_ISR_Time
+	CPI	flags, 5
+	BREQ TIMER1_ISR_10Mark
+	JMP	TIMER1_ISR_end
+//Freq is 1Hz
+TIMER1_ISR_10Mark:
+	RCALL send_time
+	CPI status, 0
+	BRNE skip_inc
+	RCALL time_increment
+skip_inc:
+	LDI flags, 0
+	JMP	TIMER1_ISR_End
+//Freq is 1Hz met  offset van 0.5sec
+TIMER1_ISR_Time:
+	rjmp send_time
+
+TIMER1_ISR_End:
+	INC	flags
+	CPI	flags, 6
+	BREQ nullify_flags
+	//OUT PORTB,	seconds
+	OUT SREG, saveSR	; restore SREG
+	RETI				; return from interrupt
+
+nullify_flags:
+LDI		flags, 0
+JMP	TIMER1_ISR_End 
+	
+	*/
+
+/*(check0: 
+		rcall input 
+		cpi tmp, 0x02
+		breq call_interupt
+		rjmp check0
+
+check1: 
+		rcall input 
+		cpi tmp, 0x03
+		breq call_interupt
+		rjmp check1
+*/
