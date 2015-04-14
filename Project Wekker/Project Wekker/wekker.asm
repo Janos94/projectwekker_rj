@@ -72,17 +72,6 @@ init:
 	; enable interrupt
 	ldi tmp, (1 << OCIE1A)
 	out TIMSK, tmp
-
-	/* init INT1
-	LDI		tmp, (1<<ISC11)	; INT1 genereert interrupt			
-	OUT		MCUCR, tmp		
-	LDI		tmp, (1<<INT1)	; enable INT1 (GICR)
-	OUT		GICR, tmp*/
-
-	/* init port
-	SER		tmp		; tmp = $FF
-	OUT		DDRB,	tmp	; Port B is output port (via LEDs)
-	OUT		PORTB,	tmp	; LEDs uitzetten*/
 	
 	sei			; Enable interrupts
 	clr		tmp
@@ -95,9 +84,6 @@ loop:
 // Timer routine //////////////////////
 
 init_time: 
-	//clr seconds 
-	//clr minutes
-	//clr hours
 	rcall send_time
 	clr flags
 	jmp sec_increment
