@@ -89,16 +89,16 @@ init:
 	//Clear tmp
 	CLR		tmp
 
-loop: 
-	
-	cpi flags, 1
+loop: 	
+	/*cpi flags, 1
 	breq time_increment
-	//rcall time_increment
+	//rcall time_increment*/
 	jmp loop
 
 TIMER1_COMP_ISR:			; ISR wordt elke seconde aangeroepen
 	IN		saveSR, SREG	; save SREG
-	ldi		flags, 1
+	//ldi		flags, 1
+	rcall time_increment
 	OUT		SREG, saveSR	; restore SREG
 	RETI				; return from interrupt
 
@@ -106,7 +106,7 @@ TIMER1_COMP_ISR:			; ISR wordt elke seconde aangeroepen
 
 time_increment: 
 	rcall send_time
-	clr flags
+	//clr flags
 	inc seconds
 	cpi seconds, 60
 	breq min_increment
