@@ -21,20 +21,24 @@ time_init:
 	.def hours = r22	
 	.def button = r28	; sw1 = b > instellen modus , sw0 = a > verhogen tijd
 
+	.def alarm = r23	;
+	.def alarm_h = r24	;
+	.def alarm_m = r25	;
+
 	clr seconds 
 	clr minutes
 	clr hours 
+
+	clr alarm
+	clr alarm_h
+	clr alarm_m
 
 init: 
 	.def tmp = r16; Define tmp on reg 16
 	.def tmp1 = r19
 
 	.def var2 = r17		;
-	.def var1 = r18		;
-
-	.def alarm = r23	;
-	.def alarm_h = r24	;
-	.def alarm_m = r25	;
+	.def var1 = r18		;	
 
 	.def saveSR = r26	;
 	.def flags = r27	;
@@ -80,6 +84,7 @@ loop:
 	cpi flags, 1
 	breq init_time
 	rcall setTime
+	rcall compare_time_state
 	jmp loop
 
 
@@ -214,7 +219,7 @@ setSec:
 	cpi button, 0b01
 	breq setSecInc
 	cpi button, 0b10
-	breq endSet
+	breq setAlarm
 	rjmp setSec
 
 	setSecInc:
@@ -230,6 +235,81 @@ setSec:
 		rcall send_time
 		rjmp setSec
 
+setAlarm:
+call debouncer
+rcall send_alarm_time
+
+	setAlarmHr: 
+		call debouncer
+		cpi button, 0b01
+		breq IncAlarmHr
+		cpi button, 0b10
+		breq setAlarmMin
+		rjmp setAlarmHr
+		////////////////
+		IncAlarmHr:
+			call wait_time
+			inc alarm_h
+			cpi alarm_h, 24
+			breq resetAlarmHr
+			rcall send_alarm_time
+			rjmp setAlarmHr
+			///////////////////
+			resetAlarmHr:
+				clr alarm_h
+				rcall send_alarm_time
+				rjmp setAlarmHr
+
+	setAlarmMin: 
+		call debouncer
+		cpi button, 0b01
+		breq IncAlarmMin
+		cpi button, 0b10
+		breq AlarmModeOnOff
+		rjmp setAlarmMin
+		////////////////
+		IncAlarmMin:
+			call wait_time
+			inc alarm_m
+			cpi alarm_m, 60
+			breq resetAlarmMin
+			rcall send_alarm_time
+			rjmp setAlarmMin
+			///////////////////
+			resetAlarmMin:
+				clr alarm_m
+				inc alarm_h
+				rcall send_alarm_time
+				rjmp setAlarmMin
+
+	AlarmModeOnOff: 
+		call debouncer 
+		call wait_time
+		cpi button, 0b01
+		breq ChangeAlarmMode
+		cpi button, 0b10
+		breq endSet
+		rjmp AlarmModeOnOff
+			///////////////
+			ChangeAlarmMode: 
+				call wait_time
+				cpi alarm, 0x00 
+				breq ChangeAlarmOn	
+				cpi alarm, 0x01
+				breq ChangeAlarmOff
+				rjmp AlarmModeOnOff
+
+			ChangeAlarmOn:
+				ldi alarm, 1				
+				rcall send_alarm_time
+				rjmp AlarmModeOnOff
+
+			ChangeAlarmOff:
+				ldi alarm, 0
+				rcall send_alarm_time
+				rjmp AlarmModeOnOff
+				
+	
 endSet:
 	ret
 
@@ -325,8 +405,7 @@ RCALL	build_segment
 MOV		var2,	tmp
 RET
 			
-send_time:
-	
+send_time:	
 	//	Send Hours
 	MOV	tmp, hours
 	RCALL calc_segment
@@ -348,11 +427,89 @@ send_time:
 	RCALL output
 	MOV	tmp, var1
 	RCALL output
-	ldi tmp, 0b00000111
+	// Send indicator 
+	rcall indicator 
 	RCALL output
 	ldi tmp, 0x80
 	RCALL output
 	RET
+
+send_alarm_time:	
+	//	Send zero's
+	ldi tmp, 0 
+	rcall output
+	rcall output
+	//	Send alarm hours
+	MOV	tmp, alarm_h
+	RCALL calc_segment
+	MOV	tmp, var2
+	RCALL output
+	MOV	tmp, var1
+	RCALL output
+	//	Send alarm Minutes
+	MOV	tmp, alarm_m
+	RCALL calc_segment
+	MOV	tmp, var2
+	RCALL output
+	MOV tmp, var1
+	RCALL output
+	// Send incators
+	rcall indicator 
+	RCALL output
+	ldi tmp, 0x80
+	RCALL output
+	RET
+
+compare_time_state:
+	cpi alarm, 1 
+	breq compare_hours
+	ret 
+	compare_hours: 
+		cp hours, alarm_h
+		brne return_from_compare
+		cp minutes, alarm_m
+		breq buzz_alarm 
+		ret
+
+		buzz_alarm: 
+			ldi alarm, 2
+			rcall send_time
+			//rcall buzz_kill
+			ret 
+
+return_from_compare: 
+	ret
+
+/*buzz_kill:  
+		in button, PINA 
+		com button
+		cpi button, 1
+		breq buzz_kill_off
+		ret
+			buzz_kill_off:
+				ldi alarm, 0
+				rcall send_alarm_time
+				ret*/
+
+indicator: 
+	alarm_off_time:
+		cpi alarm, 0 
+		brne alarm_activated
+		ldi tmp, 0b0110
+		ret
+	alarm_activated:
+		cpi alarm, 1
+		brne alarm_buzz
+		ldi tmp, 0b0111
+		ret 
+	alarm_buzz: 
+		cpi alarm, 2
+		brne return_indicator
+		ldi tmp, 0b1111
+		ret
+
+return_indicator:
+	ret	
 
 TIMER1_COMP_ISR:
 	IN		saveSR, SREG	; save SREG
