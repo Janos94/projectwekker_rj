@@ -7,6 +7,7 @@
 
 .org 0x0000
 rjmp time_init
+
 rjmp init
 
 .org OC1Aaddr
@@ -14,23 +15,22 @@ rjmp TIMER1_COMP_ISR ; adres ISR (Timer1 Output Compare Match)
 
 .include "m32def.inc"; include m32def file 
 
-time_init: 
-
+time_init: 	
 	.def seconds = r20	;
 	.def minutes = r21	;
-	.def hours = r22	;
+	.def hours = r22	
+	.def button = r28	; sw1 = b > instellen modus , sw0 = a > verhogen tijd
 
 	clr seconds 
-	clr minutes
+	ldi minutes, 59
 	clr hours 
 
 init: 
 	.def tmp = r16; Define tmp on reg 16
+	.def tmp1 = r19
 
 	.def var2 = r17		;
 	.def var1 = r18		;
-
-	.def status = r19	;
 
 	.def alarm = r23	;
 	.def alarm_h = r24	;
@@ -79,11 +79,14 @@ init:
 loop: 	
 	cpi flags, 1
 	breq init_time
+	rcall setTime
 	jmp loop
+
+
 
 // Timer routine //////////////////////
 
-init_time: 
+init_time:
 	rcall send_time
 	clr flags
 	jmp sec_increment
@@ -111,6 +114,124 @@ init_time:
 		newday: 
 			clr hours
 			ret
+
+
+////// DEBOUNCER AND WAIT some miliseconds ////
+debouncer: 
+	cpi var2, 0
+	brne count
+	in tmp, PINA
+	count:
+		inc var2 
+		cpi var2, 5
+		breq update	
+	count_low:
+		cpi tmp, 0
+		brne count_high 
+		inc var1
+	count_high: 
+		inc tmp1
+		jmp debouncer
+	check: 
+		cp tmp1, var1
+		brsh update
+		ret
+	update: 
+		com tmp
+		out PORTB, tmp 
+		mov button, tmp
+		call wait_time
+		ret	
+
+wait_time:
+	call wait 
+	call wait 
+	call wait
+	call wait 
+	wait: 
+		inc tmp
+		cpi tmp, 0xff
+		brne wait1
+		ret
+		wait1: 
+			inc tmp1
+			cpi tmp1, 0xff	
+			brne wait1
+			rjmp wait
+
+//////////////////////////////////////////
+
+setTime:
+	call debouncer
+	CPI		button,	0b10
+	BREQ	setHr
+	ret
+///////////
+setHr:
+	call debouncer
+	cpi button, 0b01
+	breq setHrInc
+	cpi button, 0b10
+	breq setMin
+	rjmp setHr
+	////////////////
+	setHrInc:
+		call wait_time
+		inc hours
+		cpi hours, 24
+		breq resetHr
+		rcall send_time
+		rjmp setHr
+		///////////////////
+		resetHr:
+			clr hours
+			rcall send_time
+			rjmp setHr
+////////////		
+setMin: 
+	call debouncer
+	cpi button, 0b01
+	breq setMinInc
+	cpi button, 0b10
+	breq setSec
+	rjmp setMin
+	////////////
+	setMinInc:
+		call wait_time
+		inc minutes
+		cpi minutes, 60
+		breq resetMin
+		rcall send_time
+		rjmp setMin	
+		///////////
+		resetMin:
+			clr minutes
+			rcall send_time
+			rjmp setMin
+///////////
+setSec: 
+	call debouncer
+	cpi button, 0b01
+	breq setSecInc
+	cpi button, 0b10
+	breq endSet
+	rjmp setSec
+
+	setSecInc:
+		call wait_time
+		inc seconds
+		cpi seconds, 60
+		breq resetSec
+		rcall send_time
+		rjmp setSec
+	
+	resetSec:
+		clr seconds
+		rcall send_time
+		rjmp setSec
+
+endSet:
+	ret
 
 output:
 	//Wait for empty transmit buffer
@@ -233,7 +354,7 @@ send_time:
 	RCALL output
 	RET
 
-TIMER1_COMP_ISR:			; ISR wordt elke seconde aangeroepen
+TIMER1_COMP_ISR:
 	IN		saveSR, SREG	; save SREG
 	ldi		flags, 1
 	OUT		SREG, saveSR	; restore SREG
