@@ -178,6 +178,7 @@ setHr:
 	breq setHrInc
 	cpi button, 0b10
 	breq setMin
+	//rcall blinkHr
 	rjmp setHr
 	////////////////
 	setHrInc:
@@ -192,6 +193,15 @@ setHr:
 			clr hours
 			rcall send_time
 			rjmp setHr
+				/*blinkHr:
+					mov var1, hours
+					clr hours
+					rcall send_time 
+					mov hours, var1
+					call wait_time
+					call wait_time
+					ret*/
+
 ////////////		
 setMin: 
 	call debouncer
@@ -459,6 +469,7 @@ send_alarm_time:
 	ldi tmp, 0x80
 	RCALL output
 	RET
+	
 
 compare_time_state:
 	cpi alarm, 1 
@@ -474,22 +485,10 @@ compare_time_state:
 		buzz_alarm: 
 			ldi alarm, 2
 			rcall send_time
-			//rcall buzz_kill
 			ret 
 
 return_from_compare: 
 	ret
-
-/*buzz_kill:  
-		in button, PINA 
-		com button
-		cpi button, 1
-		breq buzz_kill_off
-		ret
-			buzz_kill_off:
-				ldi alarm, 0
-				rcall send_alarm_time
-				ret*/
 
 indicator: 
 	alarm_off_time:
@@ -509,7 +508,16 @@ indicator:
 		ret
 
 return_indicator:
-	ret	
+	ret
+	/*set_alarm_mode_off: // Used to display dots on alarm setting screen 
+		cpi alarm, 2
+		brne 
+		ldi tmp, 0b0010
+	alarm_activated_alarm mode*/
+
+
+
+	
 
 TIMER1_COMP_ISR:
 	IN		saveSR, SREG	; save SREG
