@@ -22,7 +22,7 @@ time_init:
 	.def button = r28	; sw1 = b > instellen modus , sw0 = a > verhogen tijd
 
 	clr seconds 
-	ldi minutes, 59
+	clr minutes
 	clr hours 
 
 init: 
